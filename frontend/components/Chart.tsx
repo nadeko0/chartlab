@@ -11,6 +11,7 @@ import {
   type ISeriesApi,
   type SeriesType,
   type Time,
+  type MouseEventParams,
 } from "lightweight-charts";
 import {
   renderDrawings,
@@ -56,6 +57,35 @@ interface Props {
 
 const IND_COLORS = ["#ff9800","#2196f3","#9c27b0","#00bcd4","#4caf50","#f44336","#ffeb3b","#e91e63"];
 
+interface HoveredBar {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+function fmtTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}  ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+}
+
+function fmtPrice(p: number): string {
+  if (p >= 10000) return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (p >= 1)    return p.toFixed(4);
+  if (p >= 0.01) return p.toFixed(5);
+  return p.toFixed(6);
+}
+
+function fmtVol(v: number): string {
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+  if (v >= 1e3) return (v / 1e3).toFixed(2) + "K";
+  return v.toFixed(2);
+}
+
 function medianOf(arr: number[]): number {
   if (!arr.length) return 0;
   const s = [...arr].sort((a, b) => a - b);
@@ -100,6 +130,7 @@ export default function Chart({
   const priceSeriesRef = useRef(new Map<string, ISeriesApi<SeriesType>>());
 
   const [hasOscillators, setHasOscillators] = useState(false);
+  const [hoveredBar, setHoveredBar] = useState<HoveredBar | null>(null);
 
   const activeToolRef         = useRef<DrawingType>(activeTool);
   const drawColorRef          = useRef<string>(drawColor);
@@ -191,6 +222,20 @@ export default function Chart({
     seriesRef.current      = candleSeries;
     volSeriesRef.current   = volSeries;
 
+    const onCrosshair = (param: MouseEventParams<Time>) => {
+      if (!param.time || !param.seriesData?.size) { setHoveredBar(null); return; }
+      const bar = param.seriesData.get(candleSeries) as
+        { open: number; high: number; low: number; close: number } | undefined;
+      const vol = param.seriesData.get(volSeries) as { value: number } | undefined;
+      if (!bar) { setHoveredBar(null); return; }
+      setHoveredBar({
+        time: param.time as number,
+        open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+        volume: vol?.value ?? 0,
+      });
+    };
+    candleChart.subscribeCrosshairMove(onCrosshair);
+
     // Sync all three fixed charts + any dynamic osc charts
     const onCandleRange = () => {
       if (isSyncingRef.current) return;
@@ -238,6 +283,8 @@ export default function Chart({
       ro.disconnect();
       candleChart.timeScale().unsubscribeVisibleLogicalRangeChange(onCandleRange);
       volChart.timeScale().unsubscribeVisibleLogicalRangeChange(onVolRange);
+      candleChart.unsubscribeCrosshairMove(onCrosshair);
+      setHoveredBar(null);
       candleChart.remove(); volChart.remove();
       candleChartRef.current = null; volChartRef.current = null;
       seriesRef.current = null; volSeriesRef.current = null;
@@ -594,6 +641,27 @@ export default function Chart({
           onClick={handleClick}
           onMouseMove={handleMove}
         />
+        {hoveredBar && (() => {
+          const bull   = hoveredBar.close >= hoveredBar.open;
+          const change = hoveredBar.close - hoveredBar.open;
+          const pct    = hoveredBar.open !== 0 ? (change / hoveredBar.open) * 100 : 0;
+          const cColor = bull ? "#26a69a" : "#ef5350";
+          const sign   = change >= 0 ? "+" : "";
+          return (
+            <div
+              className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 flex items-center gap-3 px-3 py-[3px] text-[11px] font-mono"
+              style={{ background: "rgba(19,23,34,0.88)", borderTop: "1px solid #2a2e39" }}
+            >
+              <span style={{ color: "#9da3b0" }}>{fmtTime(hoveredBar.time)}</span>
+              <span style={{ color: "#d1d4dc" }}>O&nbsp;{fmtPrice(hoveredBar.open)}</span>
+              <span style={{ color: "#26a69a" }}>H&nbsp;{fmtPrice(hoveredBar.high)}</span>
+              <span style={{ color: "#ef5350" }}>L&nbsp;{fmtPrice(hoveredBar.low)}</span>
+              <span style={{ color: cColor }}>C&nbsp;{fmtPrice(hoveredBar.close)}</span>
+              <span style={{ color: cColor }}>{sign}{fmtPrice(Math.abs(change))}&nbsp;({sign}{pct.toFixed(2)}%)</span>
+              <span style={{ color: "#9da3b0" }}>Vol&nbsp;{fmtVol(hoveredBar.volume)}</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Volume pane */}
