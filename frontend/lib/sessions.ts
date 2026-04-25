@@ -2,10 +2,11 @@ import type { IChartApi, Time } from "lightweight-charts";
 
 // All session times are UTC hours. endH < startH means the session crosses midnight.
 export const SESSION_DEFS = [
-  { key: "sydney", label: "Sydney",   startH: 21, endH: 6,  color: "rgba(156,39,176,0.05)"  },
-  { key: "asia",   label: "Asia",     startH: 0,  endH: 9,  color: "rgba(255,235,59,0.07)"  },
-  { key: "london", label: "London",   startH: 7,  endH: 16, color: "rgba(33,150,243,0.06)"  },
-  { key: "ny",     label: "New York", startH: 13, endH: 22, color: "rgba(38,166,154,0.08)"  },
+  { key: "sydney",    label: "Sydney",    startH: 21, endH: 6,  color: "rgba(156,39,176,0.06)"  },
+  { key: "asia",      label: "Asia",      startH: 0,  endH: 9,  color: "rgba(255,235,59,0.07)"  },
+  { key: "frankfurt", label: "Frankfurt", startH: 7,  endH: 15, color: "rgba(255,152,0,0.07)"   },
+  { key: "london",    label: "London",    startH: 7,  endH: 16, color: "rgba(33,150,243,0.06)"  },
+  { key: "ny",        label: "New York",  startH: 13, endH: 22, color: "rgba(38,166,154,0.08)"  },
 ] as const;
 
 export type SessionKey = (typeof SESSION_DEFS)[number]["key"];
@@ -54,8 +55,9 @@ export function renderSessions(
   ctx: CanvasRenderingContext2D,
   chart: IChartApi,
   candles: { time: number }[],
+  activeSessions: readonly string[],
 ) {
-  if (candles.length < 2) return;
+  if (candles.length < 2 || !activeSessions.length) return;
 
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
@@ -66,16 +68,19 @@ export function renderSessions(
   const fromT = (visRange.from as number) - 86400;
   const toT   = (visRange.to   as number) + 86400;
 
-  // Walk every UTC midnight in the extended visible range
   const dayStart = Math.floor(fromT / 86400) * 86400;
 
-  for (const { label, startH, endH, color } of SESSION_DEFS) {
-    const labelColor = color.replace(/[\d.]+\)$/, "0.65)");
+  for (const { key, label, startH, endH, color } of SESSION_DEFS) {
+    if (!activeSessions.includes(key)) continue;
+
+    const labelColor = color.replace(/[\d.]+\)$/, "0.8)");
+    const h = (n: number) => String(n).padStart(2, "0");
+    const timeRange = `${h(startH)}:00–${h(endH)}:00`;
+    const fullLabel = `${label}  ${timeRange} UTC`;
 
     for (let d = dayStart; d <= toT; d += 86400) {
       const tStart = d + startH * 3600;
-      // Sessions crossing midnight: endH < startH means end is next day
-      const tEnd = endH > startH
+      const tEnd   = endH > startH
         ? d + endH * 3600
         : d + endH * 3600 + 86400;
 
@@ -92,10 +97,10 @@ export function renderSessions(
       ctx.fillStyle = color;
       ctx.fillRect(rx, 0, rw, H);
 
-      if (rw > 44 && rx < W - 4) {
+      if (rw > 60 && rx < W - 4) {
         ctx.font = "bold 10px sans-serif";
         ctx.fillStyle = labelColor;
-        ctx.fillText(label, Math.min(rx + 5, W - 70), 14);
+        ctx.fillText(fullLabel, Math.min(rx + 5, W - 160), 14);
       }
     }
   }

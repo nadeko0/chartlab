@@ -10,6 +10,7 @@ import { detectFVGs, type FVG } from "@/lib/fvg";
 import { calcStats, type Trade } from "@/lib/trades";
 import type { DrawingType, Drawing } from "@/lib/drawings";
 import type { Candle, IndicatorSeries } from "@/components/Chart";
+import { SESSION_DEFS, type SessionKey } from "@/lib/sessions";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -42,6 +43,80 @@ function ToggleBtn({ active, label, onClick, title }: {
   );
 }
 
+function SessionsPicker({ active, onChange }: {
+  active: SessionKey[];
+  onChange: (keys: SessionKey[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const allOn = SESSION_DEFS.every((s) => active.includes(s.key));
+  const anyOn = active.length > 0;
+
+  const toggle = (key: SessionKey) =>
+    onChange(active.includes(key) ? active.filter((k) => k !== key) : [...active, key]);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={["h-7 px-3 text-xs rounded border font-medium transition-colors",
+          anyOn ? "border-[#2962ff] text-[#2962ff]" : "border-[#363a45] text-[#787b86]",
+        ].join(" ")}
+      >
+        Sessions{anyOn ? ` (${active.length})` : ""}
+      </button>
+
+      {open && (
+        <div className="absolute top-9 left-0 z-50 rounded-xl border border-white/10 bg-[#1a1d27]/95 shadow-2xl backdrop-blur-md p-1.5 min-w-[210px]">
+          {/* All / None */}
+          <button
+            onClick={() => onChange(allOn ? [] : SESSION_DEFS.map((s) => s.key))}
+            className="w-full text-left px-3 py-1.5 text-[11px] text-[#787b86] hover:text-[#d1d4dc] hover:bg-white/5 rounded-lg transition-colors"
+          >
+            {allOn ? "Disable all" : "Enable all"}
+          </button>
+          <div className="my-1 border-t border-white/10" />
+
+          {SESSION_DEFS.map(({ key, label, startH, endH, color }) => {
+            const dot = color.replace(/[\d.]+\)$/, "0.85)");
+            const timeLabel = endH > startH
+              ? `${pad(startH)}–${pad(endH)} UTC`
+              : `${pad(startH)}–${pad(endH)} UTC (+1d)`;
+            return (
+              <label key={key}
+                className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-white/5 rounded-lg group"
+              >
+                <input
+                  type="checkbox"
+                  checked={active.includes(key)}
+                  onChange={() => toggle(key)}
+                  className="w-3 h-3 accent-[#2962ff] flex-shrink-0"
+                />
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: dot }} />
+                <span className="text-[11px] text-[#d1d4dc] flex-1">{label}</span>
+                <span className="text-[10px] text-[#4a4e5a] font-mono group-hover:text-[#787b86] transition-colors">
+                  {timeLabel}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [symbols,    setSymbols]    = useState<string[]>([]);
   const [timeframes, setTimeframes] = useState<string[]>([]);
@@ -59,9 +134,9 @@ export default function HomePage() {
 
   const [candles,      setCandles]      = useState<Candle[]>([]);
   const [status,       setStatus]       = useState("Ready");
-  const [showVolume,   setShowVolume]   = useState(true);
-  const [showSessions, setShowSessions] = useState(false);
-  const [showFVG,      setShowFVG]      = useState(false);
+  const [showVolume,     setShowVolume]     = useState(true);
+  const [activeSessions, setActiveSessions] = useState<SessionKey[]>([]);
+  const [showFVG,        setShowFVG]        = useState(false);
   const [showStats,    setShowStats]    = useState(false);
   const [showBacktest, setShowBacktest] = useState(false);
   const [btResult,     setBtResult]     = useState<BacktestResult | null>(null);
@@ -348,9 +423,9 @@ export default function HomePage() {
           Load
         </button>
 
-        <ToggleBtn active={showVolume}   label="Vol"      onClick={() => setShowVolume((v)   => !v)} title="Toggle volume" />
-        <ToggleBtn active={showSessions} label="Sessions" onClick={() => setShowSessions((v) => !v)} title="Toggle sessions (UTC)" />
-        <ToggleBtn active={showFVG}      label="FVG"      onClick={() => setShowFVG((v)      => !v)} title="Toggle Fair Value Gaps" />
+        <ToggleBtn active={showVolume} label="Vol" onClick={() => setShowVolume((v) => !v)} title="Toggle volume" />
+        <SessionsPicker active={activeSessions} onChange={setActiveSessions} />
+        <ToggleBtn active={showFVG} label="FVG" onClick={() => setShowFVG((v) => !v)} title="Toggle Fair Value Gaps" />
         <ToggleBtn active={replayMode}   label="Replay"   onClick={handleReplayToggle}                title="Bar replay mode" />
         <ToggleBtn active={showStats}    label="Stats"    onClick={() => setShowStats((v)    => !v)} title="Toggle stats panel" />
         <ToggleBtn active={showBacktest || !!btResult} label={btResult ? "BT loaded" : "Backtest"} onClick={() => setShowBacktest((v) => !v)} title="Load backtest results" />
@@ -369,7 +444,7 @@ export default function HomePage() {
           onContextDrawing={handleContextDrawing}
           drawColor={drawColor}
           showVolume={showVolume}
-          showSessions={showSessions}
+          activeSessions={activeSessions}
           showFVG={showFVG}
           fvgs={visibleFvgs}
           trades={chartTrades}

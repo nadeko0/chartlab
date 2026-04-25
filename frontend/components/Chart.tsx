@@ -45,7 +45,7 @@ interface Props {
   onContextDrawing: (id: string, clientX: number, clientY: number) => void;
   drawColor: string;
   showVolume: boolean;
-  showSessions: boolean;
+  activeSessions: string[];
   showFVG: boolean;
   fvgs: FVG[];
   trades: Trade[];
@@ -71,7 +71,7 @@ export default function Chart({
   onContextDrawing,
   drawColor,
   showVolume,
-  showSessions,
+  activeSessions,
   showFVG,
   fvgs,
   trades,
@@ -105,7 +105,7 @@ export default function Chart({
   const drawColorRef          = useRef<string>(drawColor);
   const drawingsRef           = useRef<Drawing[]>(drawings);
   const candlesRef            = useRef<Candle[]>(candles);
-  const showSessionsRef       = useRef<boolean>(showSessions);
+  const activeSessionsRef     = useRef<string[]>(activeSessions);
   const showFVGRef            = useRef<boolean>(showFVG);
   const fvgsRef               = useRef<FVG[]>(fvgs);
   const tradesRef             = useRef<Trade[]>(trades);
@@ -118,7 +118,7 @@ export default function Chart({
   useEffect(() => { drawColorRef.current         = drawColor;        }, [drawColor]);
   useEffect(() => { drawingsRef.current          = drawings;         }, [drawings]);
   useEffect(() => { candlesRef.current           = candles;          }, [candles]);
-  useEffect(() => { showSessionsRef.current      = showSessions;     }, [showSessions]);
+  useEffect(() => { activeSessionsRef.current     = activeSessions;   }, [activeSessions]);
   useEffect(() => { showFVGRef.current           = showFVG;          }, [showFVG]);
   useEffect(() => { fvgsRef.current              = fvgs;             }, [fvgs]);
   useEffect(() => { tradesRef.current            = trades;           }, [trades]);
@@ -136,8 +136,8 @@ export default function Chart({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (showSessionsRef.current) {
-      renderSessions(ctx, chart, candlesRef.current);
+    if (activeSessionsRef.current.length > 0) {
+      renderSessions(ctx, chart, candlesRef.current, activeSessionsRef.current);
     }
 
     if (showFVGRef.current && fvgsRef.current.length > 0) {
@@ -413,7 +413,7 @@ export default function Chart({
     }
   }, [candles, replayIdx, redraw]);
 
-  useEffect(() => { redraw(); }, [drawings, showSessions, showFVG, fvgs, trades, redraw]);
+  useEffect(() => { redraw(); }, [drawings, activeSessions, showFVG, fvgs, trades, redraw]);
 
   // ── Indicator series (price-overlay + per-osc-pane) ─────────────────────
   useEffect(() => {

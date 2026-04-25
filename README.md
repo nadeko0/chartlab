@@ -1,33 +1,33 @@
-# Nana Chart UI
+# Chartlab
 
-TradingView-style charting web app for visualizing crypto OHLCV data and backtest results.
+TradingView-style charting web app for crypto OHLCV data — candlestick charts, session bands, Fair Value Gaps, drawing tools, bar replay, and backtest result overlay.
 
-Built as the frontend for the [Nana](https://github.com/grymik09/nana) backtesting platform — but works with any PostgreSQL database that has an `ohlcv` table.
+Works with any PostgreSQL database that has an `ohlcv` table.
 
 ![chart preview](docs/preview.png)
 
 ## Features
 
 - **Candlestick charts** powered by LightweightCharts v5 with synced volume pane
-- **Session bands** — Sydney, Asia, London, New York (UTC-accurate on all timeframes)
+- **Session picker** — Sydney, Asia, Frankfurt, London, New York — toggle individually, UTC times shown in label
 - **Fair Value Gaps** (FVG+/FVG−) with fill detection
 - **Drawing tools** — trend lines, rays, horizontal lines, Fibonacci retracements, supply/demand zones, R:R calculator
 - **Bar replay** — step through history manually, place long/short trades with SL/TP, track P&L
-- **Backtest overlay** — load JSON results from the Nana engine: trades on chart, per-indicator panes (oscillators get their own synced sub-chart, price-scale indicators overlay the main chart)
+- **Backtest overlay** — load JSON result files: trades on chart, per-indicator panes (oscillators get their own synced sub-chart, price-scale indicators overlay the main chart)
 - All panes (price / volume / oscillators) scroll and zoom in sync
 
 ## Stack
 
-| Layer    | Tech                                              |
-|----------|---------------------------------------------------|
+| Layer    | Tech                                                       |
+|----------|------------------------------------------------------------|
 | Frontend | Next.js 15, TypeScript, Tailwind CSS, LightweightCharts v5 |
-| Backend  | FastAPI, asyncpg, Python 3.13                     |
-| Database | PostgreSQL                                        |
+| Backend  | FastAPI, asyncpg, Python 3.13                              |
+| Database | PostgreSQL                                                 |
 
 ## Project structure
 
 ```
-web_ui/
+chartlab/
 ├── frontend/          # Next.js app
 │   ├── app/           # page.tsx (main route)
 │   ├── components/    # Chart, BacktestPanel, Toolbar, ReplayBar, StatsPanel
@@ -46,14 +46,14 @@ web_ui/
 
 ```sql
 CREATE TABLE ohlcv (
-    symbol   TEXT    NOT NULL,
-    interval TEXT    NOT NULL,
-    timestamp BIGINT NOT NULL,   -- Unix ms
-    open     NUMERIC NOT NULL,
-    high     NUMERIC NOT NULL,
-    low      NUMERIC NOT NULL,
-    close    NUMERIC NOT NULL,
-    volume   NUMERIC NOT NULL,
+    symbol    TEXT    NOT NULL,
+    interval  TEXT    NOT NULL,
+    timestamp BIGINT  NOT NULL,   -- Unix ms
+    open      NUMERIC NOT NULL,
+    high      NUMERIC NOT NULL,
+    low       NUMERIC NOT NULL,
+    close     NUMERIC NOT NULL,
+    volume    NUMERIC NOT NULL,
     PRIMARY KEY (symbol, interval, timestamp)
 );
 ```
@@ -82,7 +82,7 @@ Open **http://localhost:3000**
 
 ## Backtest integration
 
-The backend serves JSON files from `../docs/research/` that match `backtest_*.json`.
+The backend serves JSON files from `../docs/research/` matching `backtest_*.json`.
 
 Expected shape:
 
@@ -90,7 +90,8 @@ Expected shape:
 {
   "meta":    { "symbol": "BTCUSDT", "interval": "60", "strategy": "my_strat", "trade_count": 123 },
   "metrics": { "winrate": 54.2, "profit_factor": 1.8, "compound_pnl": 34.1, "max_drawdown": 12.3, "sharpe_ratio": 1.4 },
-  "trades":  [{ "id": "...", "dir": "long", "entryTime": 1700000000, "entryPrice": 43000, "sl": 42000, "tp": 45000, "exitTime": 1700003600, "exitPrice": 45000, "exitReason": "tp" }],
+  "trades":  [{ "id": "...", "dir": "long", "entryTime": 1700000000, "entryPrice": 43000,
+                "sl": 42000, "tp": 45000, "exitTime": 1700003600, "exitPrice": 45000, "exitReason": "tp" }],
   "indicators": { "vwap": [{ "time": 1700000000, "value": 43100 }], "rsi": [...] }
 }
 ```
@@ -99,16 +100,16 @@ Expected shape:
 
 ### Frontend (`frontend/.env.local`)
 
-| Variable              | Default                    | Description              |
-|-----------------------|----------------------------|--------------------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000`    | Backend base URL         |
+| Variable              | Default                 | Description      |
+|-----------------------|-------------------------|------------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL |
 
 ### Backend (`backend/.env`)
 
-| Variable       | Default                                                | Description              |
-|----------------|--------------------------------------------------------|--------------------------|
-| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/crypto_db` | PostgreSQL DSN        |
-| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000`          | Comma-separated origins  |
+| Variable       | Default                                                   | Description             |
+|----------------|-----------------------------------------------------------|-------------------------|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/crypto_db` | PostgreSQL DSN          |
+| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000`             | Comma-separated origins |
 
 ## License
 
